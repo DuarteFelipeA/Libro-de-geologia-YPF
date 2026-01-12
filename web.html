@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tierra en Capas — Interactivo</title>
+  <meta name="description" content="Capas de la Tierra con globos informativos alrededor, líneas conectadas y animación/explicación por capa al hacer clic." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root{
+      --bg0:#070A0F;
+      --bg1:#0A1020;
+
+      --ink:#eaf0ff;
+      --muted: rgba(234,240,255,.72);
+
+      --panel:#0c1224cc;
+      --shadow: 0 24px 80px rgba(0,0,0,.45);
+
+      --radius: 20px;
+      --ease: cubic-bezier(.2,.9,.2,1);
+
+      --focus: 0 0 0 3px rgba(139,231,255,.28), 0 0 0 1px rgba(139,231,255,.55) inset;
+
+      --balloon-bg: rgba(40,183,255,.92);
+      --balloon-bg2: rgba(111,117,255,.88);
+      --balloon-shadow: rgba(0,0,0,.34);
+
+      --connector: rgba(234,240,255,.78);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
+    body{
+      color: var(--ink);
+      font-family: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:
+        radial-gradient(1100px 700px at 15% 10%, rgba(111,117,255,.22), transparent 60%),
+        radial-gradient(900px 700px at 85% 18%, rgba(40,183,255,.18), transparent 60%),
+        radial-gradient(800px 800px at 60% 110%, rgba(255,90,82,.14), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow: hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .grain{
+      position: fixed;
+      inset:0;
+      pointer-events:none;
+      opacity:.12;
+      mix-blend-mode: overlay;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+      transform: translateZ(0);
+    }
+
+    main.etapa{
+      width:min(1200px, 100vw);
+      height: 100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: clamp(10px, 2.4vw, 22px);
+    }
+
+    .area-tierra{
+      position: relative;
+      width: min(900px, 96vw);
+      aspect-ratio: 1;
+      display:grid;
+      place-items:center;
+      isolation: isolate;
+    }
+
+    .tierra{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display:block;
+      z-index: 1;
+      user-select:none;
+    }
+    .tierra svg{
+      width:100%;
+      height:100%;
+      display:block;
+      filter: drop-shadow(0 34px 70px rgba(0,0,0,.40));
+    }
+
+    .capa{
+      cursor:pointer;
+      transition: filter .18s var(--ease), transform .18s var(--ease);
+      transform-origin: 50% 50%;
+      outline:none;
+    }
+    .capa:hover{ filter: brightness(1.06) saturate(1.08); }
+    .capa:active{ transform: scale(.988); }
+    .capa:focus-visible{ box-shadow: var(--focus); border-radius: 12px; }
+    .capa[aria-pressed="true"]{ filter: brightness(1.12) saturate(1.22); }
+
+    .globos{
+      position:absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .globo{
+      position:absolute;
+      pointer-events:auto;
+      display:flex;
+      flex-direction: column;
+      align-items:flex-start;
+      justify-content:center;
+      gap: 6px;
+      padding: 12px 14px 12px 14px;
+      border-radius: 18px;
+      color: white;
+      letter-spacing: .2px;
+      background:
+        radial-gradient(120% 140% at 20% 20%, rgba(255,255,255,.22), transparent 55%),
+        linear-gradient(135deg, var(--balloon-bg), var(--balloon-bg2));
+      box-shadow:
+        0 10px 30px rgba(0,0,0,.35),
+        inset 0 0 0 1px rgba(255,255,255,.18);
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      user-select:none;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: transform .18s var(--ease), filter .18s var(--ease);
+      min-width: min(240px, 46vw);
+      max-width: min(290px, 56vw);
+      text-align:left;
+    }
+    .globo:hover{
+      transform: translate(-50%, -50%) scale(1.02);
+      filter: brightness(1.05);
+      z-index: 6;
+    }
+    .globo:active{
+      transform: translate(-50%, -50%) scale(.985);
+    }
+    .globo:focus-visible{
+      outline:none;
+      box-shadow:
+        0 10px 30px rgba(0,0,0,.35),
+        inset 0 0 0 1px rgba(255,255,255,.18),
+        var(--focus);
+    }
+
+    .b-titulo{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      width: 100%;
+    }
+    .b-punto{
+      width: 10px; height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.14);
+    }
+    .b-nombre{
+      font-weight: 800;
+      font-size: clamp(12px, 1.55vw, 15px);
+      line-height: 1.1;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      letter-spacing: -0.01em;
+    }
+    .b-mini{
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,.82);
+      line-height: 1.35;
+    }
+    .b-desc{
+      font-size: 12px;
+      color: rgba(234,240,255,.88);
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
+
+    svg.conector{
+      position:absolute;
+      inset: 0;
+      width:100%;
+      height:100%;
+      z-index: 3;
+      pointer-events:none;
+      overflow: visible;
+    }
+
+    .linea-conector{
+      fill:none;
+      stroke: var(--connector);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-opacity: .72;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.22));
+      transition: stroke-opacity .18s var(--ease), stroke-width .18s var(--ease);
+    }
+
+    .linea-conector.activa{
+      stroke-opacity: 1;
+      stroke-width: 2.8;
+    }
+
+    .modal-fondo{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.86);
+      display:none;
+      justify-content:center;
+      align-items:center;
+      z-index: 10000;
+      padding: 18px;
+    }
+    .modal-fondo.activo{ display:flex; }
+
+    .modal{
+      width: min(820px, 94vw);
+      max-height: min(82vh, 900px);
+      overflow:auto;
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 18px;
+      position: relative;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .modal-cabecera{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 6px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+    }
+    .modal-titulo{
+      margin: 0;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      font-size: clamp(20px, 2.6vw, 30px);
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+    .modal-meta{
+      margin-top: 6px;
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      color: rgba(234,240,255,.72);
+      font-size: 12px;
+    }
+
+    .btn-cerrar{
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(234,240,255,.85);
+      cursor:pointer;
+      font-size: 22px;
+      line-height: 1;
+      display:grid;
+      place-items:center;
+      transition: transform .16s var(--ease), background .16s var(--ease);
+      flex: 0 0 auto;
+    }
+    .btn-cerrar:hover{ background: rgba(255,255,255,.10); transform: scale(1.04); }
+    .btn-cerrar:active{ transform: scale(.98); }
+    .btn-cerrar:focus-visible{ outline:none; box-shadow: var(--focus); }
+
+    .modal-cuerpo{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      padding: 16px 6px 8px;
+    }
+
+    .chips{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chip{
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      color: rgba(234,240,255,.86);
+    }
+
+    .anim{
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background:
+        radial-gradient(120% 120% at 15% 10%, rgba(255,255,255,.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow: 0 22px 60px rgba(0,0,0,.25);
+      overflow:hidden;
+      position: relative;
+      min-height: 320px;
+      isolation:isolate;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .anim-top{
+      padding: 14px 14px 0;
+      display:flex;
+      justify-content: space-between;
+      align-items:flex-start;
+      gap: 12px;
+    }
+    .anim-top .label{
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: rgba(234,240,255,.72);
+    }
+    .anim-top .legend{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content:flex-end;
+      align-items:center;
+      text-align:right;
+    }
+    .legend .sw{
+      display:inline-flex;
+      align-items:center;
+      gap: 6px;
+      font-size: 11px;
+      color: rgba(234,240,255,.82);
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 6px 8px;
+      border-radius: 999px;
+    }
+    .legend .sw i{
+      width: 10px; height: 10px; border-radius: 999px; display:inline-block;
+      background: white;
+    }
+
+    .anim-canvas{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display:flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #animacionSVG { /* Estilos para el SVG insertado */
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      object-fit: contain;
+    }
+
+    @media (max-width: 860px){
+      .modal-cuerpo{ grid-template-columns: 1fr; }
+      .anim{ min-height: 280px; }
+    }
+
+    @media (max-width: 520px){
+      .area-tierra{ width: 96vw; }
+      .globo{ min-width: min(220px, 78vw); }
+      .linea-conector{ stroke-width: 1.8; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <main class="etapa">
+    <section class="area-tierra" aria-label="Diagrama interactivo de capas de la Tierra">
+      <div class="tierra" id="tierra" tabindex="0" role="application" aria-label="Sección de la Tierra con capas interactivas">
+        <svg id="svgTierra" viewBox="0 0 520 520" role="img" aria-label="Capas de la Tierra">
+          <defs>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="0.6" />
+            </filter>
+
+            <radialGradient id="gSpace" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stop-color="rgba(0,0,0,0)" />
+              <stop offset="70%" stop-color="rgba(0,0,0,0.25)" />
+              <stop offset="100%" stop-color="rgba(0,0,0,0.88)" />
+            </radialGradient>
+
+            <radialGradient id="gAtm" cx="38%" cy="28%" r="78%">
+              <stop offset="0" stop-color="rgba(255,255,255,.55)"/>
+              <stop offset=".30" stop-color="rgba(139,231,255,.55)"/>
+              <stop offset="1" stop-color="rgba(111,117,255,.10)"/>
+            </radialGradient>
+
+            <radialGradient id="gOcean" cx="38%" cy="28%" r="78%">
+              <stop offset="0" stop-color="rgba(170,240,255,.9)"/>
+              <stop offset=".55" stop-color="rgba(40,183,255,.95)"/>
+              <stop offset="1" stop-color="rgba(18,87,255,.92)"/>
+            </radialGradient>
+
+            <radialGradient id="gLith" cx="38%" cy="28%" r="78%">
+              <stop offset="0" stop-color="rgba(180,255,208,.9)"/>
+              <stop offset=".55" stop-color="rgba(120,245,155,.95)"/>
+              <stop offset="1" stop-color="rgba(33,199,155,.92)"/>
+            </radialGradient>
+
+            <radialGradient id="gMantle" cx="42%" cy="30%" r="80%">
+              <stop offset="0" stop-color="rgba(255,214,150,.95)"/>
+              <stop offset=".55" stop-color="rgba(255,178,74,.95)"/>
+              <stop offset="1" stop-color="rgba(255,90,82,.92)"/>
+            </radialGradient>
+
+            <radialGradient id="gOuter" cx="44%" cy="34%" r="82%">
+              <stop offset="0" stop-color="rgba(255,160,190,.95)"/>
+              <stop offset=".58" stop-color="rgba(255,74,112,.95)"/>
+              <stop offset="1" stop-color="rgba(255,45,178,.92)"/>
+            </radialGradient>
+
+            <radialGradient id="gInner" cx="46%" cy="38%" r="82%">
+              <stop offset="0" stop-color="rgba(255,248,200,.95)"/>
+              <stop offset=".60" stop-color="rgba(255,224,107,.95)"/>
+              <stop offset="1" stop-color="rgba(255,138,42,.92)"/>
+            </radialGradient>
+
+            <linearGradient id="gRing" x1="0" x2="1">
+              <stop offset="0" stop-color="rgba(255,255,255,.8)"/>
+              <stop offset="0.5" stop-color="rgba(255,255,255,.18)"/>
+              <stop offset="1" stop-color="rgba(255,255,255,.7)"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Capas SVG -->
+          <g class="capa" id="capa-espacio" tabindex="0" role="button" aria-label="Espacio" aria-pressed="false">
+            <circle cx="260" cy="260" r="250" fill="url(#gSpace)"></circle>
+          </g>
+          <circle cx="260" cy="260" r="224" fill="rgba(0,0,0,.18)" filter="url(#soft)"></circle>
+          <g class="capa" id="capa-atmosfera" tabindex="0" role="button" aria-label="Atmósfera" aria-pressed="false">
+            <circle cx="260" cy="260" r="210" fill="url(#gAtm)" opacity=".88"></circle>
+          </g>
+          <g class="capa" id="capa-oceanos" tabindex="0" role="button" aria-label="Océanos" aria-pressed="false">
+            <circle cx="260" cy="260" r="198" fill="url(#gOcean)" opacity=".90"></circle>
+          </g>
+          <g class="capa" id="capa-litosfera" tabindex="0" role="button" aria-label="Litosfera" aria-pressed="false">
+            <circle cx="260" cy="260" r="182" fill="url(#gLith)" opacity=".96"></circle>
+          </g>
+          <g class="capa" id="capa-placas" tabindex="0" role="button" aria-label="Placas tectónicas" aria-pressed="false" opacity=".95">
+            <path d="M162,186 C206,148 258,158 292,198 C326,238 370,242 392,210"
+                  fill="none" stroke="rgba(0,0,0,.30)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M176,334 C214,300 252,302 286,336 C320,372 356,378 378,354"
+                  fill="none" stroke="rgba(0,0,0,.24)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M252,148 C244,190 262,224 286,254 C310,284 312,322 296,366"
+                  fill="none" stroke="rgba(0,0,0,.22)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g class="capa" id="capa-manto" tabindex="0" role="button" aria-label="Manto" aria-pressed="false">
+            <circle cx="260" cy="260" r="150" fill="url(#gMantle)"></circle>
+          </g>
+          <g class="capa" id="capa-nucleo-externo" tabindex="0" role="button" aria-label="Núcleo externo" aria-pressed="false">
+            <circle cx="260" cy="260" r="104" fill="url(#gOuter)"></circle>
+          </g>
+          <g class="capa" id="capa-nucleo-interno" tabindex="0" role="button" aria-label="Núcleo interno" aria-pressed="false">
+            <circle cx="260" cy="260" r="58" fill="url(#gInner)"></circle>
+          </g>
+          <g id="anillo" aria-hidden="true" style="opacity:.65">
+            <circle cx="260" cy="260" r="232" fill="none" stroke="url(#gRing)" stroke-width="6" opacity=".70"/>
+          </g>
+        </svg>
+      </div>
+
+      <svg class="conector" id="svgConector" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path id="linea-espacio" class="linea-conector" d=""></path>
+        <path id="linea-atmosfera" class="linea-conector" d=""></path>
+        <path id="linea-oceanos" class="linea-conector" d=""></path>
+        <path id="linea-litosfera" class="linea-conector" d=""></path>
+        <path id="linea-placas" class="linea-conector" d=""></path>
+        <path id="linea-manto" class="linea-conector" d=""></path>
+        <path id="linea-nucleo-externo" class="linea-conector" d=""></path>
+        <path id="linea-nucleo-interno" class="linea-conector" d=""></path>
+      </svg>
+
+      <div class="globos" id="globos">
+        <button class="globo" type="button" data-capa="capa-espacio" style="left:50%; top:5%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Espacio</span></span>
+          <span class="b-mini">Vacío casi total · radiación · satélites</span>
+          <span class="b-desc">Entorno externo que condiciona el intercambio energético con el Sol.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-atmosfera" style="left:74%; top:12%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Atmósfera</span></span>
+          <span class="b-mini">N₂/O₂ · capas: tropo→exo</span>
+          <span class="b-desc">Protege y regula clima; filtra radiación y micrometeoritos.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-oceanos" style="left:88%; top:34%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Océanos</span></span>
+          <span class="b-mini">Termorregulación · CO₂</span>
+          <span class="b-desc">Circulación superficial/termoalina: redistribuye calor y nutrientes.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-litosfera" style="left:92%; top:54%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Litosfera</span></span>
+          <span class="b-mini">Corteza + manto sup.</span>
+          <span class="b-desc">Placas rígidas sobre astenosfera; sismos y relieve.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-placas" style="left:82%; top:78%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Placas tectónicas</span></span>
+          <span class="b-mini">Límites activos · fricción · deformación</span>
+          <span class="b-desc">Interacción de placas: terremotos, volcanes y montañas.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-manto" style="left:50%; top:94%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Manto</span></span>
+          <span class="b-mini">Convección · silicatos Mg-Fe</span>
+          <span class="b-desc">Fluye a escala geológica y mueve las placas desde abajo.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-nucleo-externo" style="left:18%; top:80%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Núcleo externo</span></span>
+          <span class="b-mini">Fe–Ni líquido · dínamo</span>
+          <span class="b-desc">Genera el campo magnético terrestre por convección conductora.</span>
+        </button>
+        <button class="globo" type="button" data-capa="capa-nucleo-interno" style="left:12%; top:45%;">
+          <span class="b-titulo"><span class="b-punto"></span><span class="b-nombre">Núcleo interno</span></span>
+          <span class="b-mini">Fe–Ni sólido · alta presión</span>
+          <span class="b-desc">Cristaliza lentamente y alimenta la dínamo (energía/elementos ligeros).</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-fondo" id="modalFondo" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+    <article class="modal" tabindex="0">
+      <header class="modal-cabecera">
+        <div>
+          <h4 class="modal-titulo" id="modalTitulo">Detalle</h4>
+          <div class="modal-meta" id="modalMeta"></div>
+        </div>
+        <button class="btn-cerrar" id="btnCerrar" aria-label="Cerrar">&times;</button>
+      </header>
+
+      <div class="modal-cuerpo">
+        <section class="modal-texto" aria-label="Descripción de la capa">
+          <div class="chips" id="modalChips"></div>
+          <p id="modalCuerpo"></p>
+        </section>
+
+        <aside class="anim" aria-label="Animación de la capa seleccionada">
+          <div class="anim-top">
+            <div>
+              <div class="label" id="animEtiqueta">ANIMACIÓN</div>
+              <div class="label" id="animSubtitulo">Estructura + composición</div>
+            </div>
+            <div class="legend" id="animLeyenda"></div>
+          </div>
+
+          <div class="anim-canvas" id="contenedorAnimacion">
+            <!-- Aquí se insertará el SVG animado -->
+          </div>
+        </aside>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    (function(){
+      // Variables DOM
+      const tierra = document.getElementById('tierra');
+      const svgTierra = document.getElementById('svgTierra');
+      const globos = document.getElementById('globos');
+      const svgConector = document.getElementById('svgConector');
+
+      const modalFondo = document.getElementById('modalFondo');
+      const btnCerrar = document.getElementById('btnCerrar');
+      const modalTitulo = document.getElementById('modalTitulo');
+      const modalMeta = document.getElementById('modalMeta');
+      const modalCuerpo = document.getElementById('modalCuerpo');
+      const modalChips = document.getElementById('modalChips');
+      const animLeyenda = document.getElementById('animLeyenda');
+      const contenedorAnimacion = document.getElementById('contenedorAnimacion');
+
+      // Datos de capas con SVG animados en formato string
+      const CAPAS = [
+        {
+          clave:'espacio',
+          id:'capa-espacio',
+          nombre:'Espacio',
+          radio: 250,
+          etiquetas: ["Vacío", "Radiación", "Viento solar", "Satélites"],
+          leyenda: [
+            { nombre:"Partículas", color:"#cfd6ff" },
+            { nombre:"Radiación", color:"#8be7ff" }
+          ],
+          textoDetalle: `El espacio exterior es la región más allá de la atmósfera...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Espacio" role="img">
+              <rect width="320" height="320" fill="#10162f"/>
+              <circle cx="160" cy="160" r="140" fill="url(#gradEspacio)" />
+              <defs>
+                <radialGradient id="gradEspacio" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#8a98ff" stop-opacity="0.6"/>
+                  <stop offset="100%" stop-color="#10162f" stop-opacity="1"/>
+                </radialGradient>
+              </defs>
+              <circle cx="80" cy="80" r="3" fill="white">
+                <animate attributeName="cy" values="80;100;80" dur="4s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="240" cy="120" r="2" fill="white">
+                <animate attributeName="cx" values="240;260;240" dur="5s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="200" cy="220" r="4" fill="white" opacity="0.8">
+                <animate attributeName="cy" values="220;240;220" dur="3.5s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        },
+        {
+          clave:'atmosfera',
+          id:'capa-atmosfera',
+          nombre:'Atmósfera',
+          radio: 210,
+          etiquetas: ["N₂", "O₂", "Capas", "Clima"],
+          leyenda: [
+            { nombre:"N₂", color:"#eaf0ff" },
+            { nombre:"O₂", color:"#8be7ff" },
+            { nombre:"Aerosoles", color:"#c9a3ff" }
+          ],
+          textoDetalle: `Capa gaseosa que envuelve la Tierra...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Atmósfera" role="img">
+              <circle cx="160" cy="160" r="140" fill="#6fb0ff"/>
+              <g>
+                <ellipse cx="80" cy="120" rx="30" ry="15" fill="white" opacity="0.8">
+                  <animate attributeName="cx" values="80;100;80" dur="6s" repeatCount="indefinite" />
+                </ellipse>
+                <ellipse cx="110" cy="120" rx="25" ry="15" fill="white" opacity="0.8">
+                  <animate attributeName="cx" values="110;130;110" dur="6s" repeatCount="indefinite" />
+                </ellipse>
+              </g>
+              <g>
+                <ellipse cx="200" cy="180" rx="35" ry="18" fill="white" opacity="0.7">
+                  <animate attributeName="cx" values="200;220;200" dur="8s" repeatCount="indefinite" />
+                </ellipse>
+                <ellipse cx="235" cy="180" rx="28" ry="18" fill="white" opacity="0.7">
+                  <animate attributeName="cx" values="235;255;235" dur="8s" repeatCount="indefinite" />
+                </ellipse>
+              </g>
+            </svg>
+          `
+        },
+        {
+          clave:'oceanos',
+          id:'capa-oceanos',
+          nombre:'Océanos',
+          radio: 198,
+          etiquetas: ["Agua líquida", "Salinidad", "Corrientes", "Vida marina"],
+          leyenda: [
+            { nombre:"Agua", color:"#28b7ff" },
+            { nombre:"Sales", color:"#1257ff" }
+          ],
+          textoDetalle: `Los océanos cubren la mayor parte de la superficie terrestre...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Océanos" role="img">
+              <circle cx="160" cy="160" r="140" fill="#1257ff"/>
+              <path d="M100,120 Q160,100 220,120 Q160,140 100,120 Z" fill="#28b7ff" opacity="0.8">
+                <animateTransform attributeName="transform" type="scale" values="1; 1.1; 1" dur="5s" repeatCount="indefinite" />
+              </path>
+              <path d="M80,180 Q160,160 240,180 Q160,200 80,180 Z" fill="#28b7ff" opacity="0.7">
+                <animateTransform attributeName="transform" type="scale" values="1; 0.9; 1" dur="6s" repeatCount="indefinite" />
+              </path>
+              <circle cx="160" cy="240" r="15" fill="#aaffff" opacity="0.5">
+                <animate attributeName="r" values="15;18;15" dur="4s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        },
+        {
+          clave:'litosfera',
+          id:'capa-litosfera',
+          nombre:'Litosfera',
+          radio: 182,
+          etiquetas: ["Corteza", "Manto superior", "Placas rígidas", "Relieve"],
+          leyenda: [
+            { nombre:"Roca", color:"#78f59b" },
+            { nombre:"Minerales", color:"#21c79b" }
+          ],
+          textoDetalle: `La litosfera es la capa externa rígida de la Tierra...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Litosfera" role="img">
+              <circle cx="160" cy="160" r="140" fill="#21c79b"/>
+              <path d="M80,120 Q160,100 240,120 L230,130 Q160,120 90,130 Z" fill="#78f59b" opacity="0.9"/>
+              <path d="M100,180 Q160,160 220,180 L210,190 Q160,180 110,190 Z" fill="#78f59b" opacity="0.8">
+                <animateTransform attributeName="transform" type="translate" values="0,0; 0,5; 0,0" dur="7s" repeatCount="indefinite" />
+              </path>
+              <circle cx="160" cy="240" r="10" fill="#aaffaa" opacity="0.6">
+                <animate attributeName="r" values="10;12;10" dur="5s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        },
+        {
+          clave:'placas',
+          id:'capa-placas',
+          nombre:'Placas Tectónicas',
+          radio: 182, // Usamos el mismo radio que litosfera para la conexión visual
+          etiquetas: ["Movimiento", "Límites", "Terremotos", "Volcanes"],
+          leyenda: [
+            { nombre:"Fricción", color:"#ff4a70" },
+            { nombre:"Deformación", color:"#ff2db2" }
+          ],
+          textoDetalle: `Las placas tectónicas son fragmentos de la litosfera...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Placas Tectónicas" role="img">
+              <circle cx="160" cy="160" r="140" fill="#1a1a1a" opacity="0.5"/>
+              <path d="M80,120 Q160,100 240,120" fill="none" stroke="#ff4a70" stroke-width="12" stroke-linecap="round">
+                <animateTransform attributeName="transform" type="translate" values="0,-5; 0,5; 0,-5" dur="4s" repeatCount="indefinite" />
+              </path>
+              <path d="M100,180 Q160,160 220,180" fill="none" stroke="#ff2db2" stroke-width="10" stroke-linecap="round">
+                <animateTransform attributeName="transform" type="translate" values="0,3; 0,-3; 0,3" dur="5s" repeatCount="indefinite" />
+              </path>
+              <circle cx="160" cy="160" r="8" fill="orange">
+                <animate attributeName="r" values="8;12;8" dur="3s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        },
+        {
+          clave:'manto',
+          id:'capa-manto',
+          nombre:'Manto',
+          radio: 150,
+          etiquetas: ["Convección", "Silicatos", "Flujo lento", "Magma"],
+          leyenda: [
+            { nombre:"Calor", color:"#ffb24a" },
+            { nombre:"Movimiento", color:"#ff5a52" }
+          ],
+          textoDetalle: `El manto es la capa más voluminosa de la Tierra...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Manto" role="img">
+              <circle cx="160" cy="160" r="140" fill="#ff5a52"/>
+              <defs>
+                <linearGradient id="gradManto" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#ffb24a" stop-opacity="0.7"/>
+                  <stop offset="100%" stop-color="#ff5a52" stop-opacity="0.9"/>
+                </linearGradient>
+              </defs>
+              <ellipse cx="160" cy="160" rx="120" ry="100" fill="url(#gradManto)">
+                <animateTransform attributeName="transform" type="rotate" from="0 160 160" to="360 160 160" dur="15s" repeatCount="indefinite" />
+              </ellipse>
+              <circle cx="80" cy="100" r="8" fill="orange" opacity="0.7">
+                <animateMotion path="M80,100 C100,80 130,80 160,100 S220,120 240,100" dur="7s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="240" cy="220" r="8" fill="orange" opacity="0.7">
+                <animateMotion path="M240,220 C220,240 190,240 160,220 S100,200 80,220" dur="7s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        },
+        {
+          clave:'nucleo-externo',
+          id:'capa-nucleo-externo',
+          nombre:'Núcleo Externo',
+          radio: 104,
+          etiquetas: ["Hierro líquido", "Níquel", "Campo magnético", "Dínamo"],
+          leyenda: [
+            { nombre:"Fe-Ni", color:"#ff4a70" },
+            { nombre:"Líquido", color:"#ff2db2" }
+          ],
+          textoDetalle: `El núcleo externo es una capa de metal líquido...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Núcleo Externo" role="img">
+              <circle cx="160" cy="160" r="140" fill="#ff2db2"/>
+              <defs>
+                <radialGradient id="gradNucleoExt" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ff4a70" stop-opacity="0.8"/>
+                  <stop offset="100%" stop-color="#ff2db2" stop-opacity="1"/>
+                </radialGradient>
+              </defs>
+              <circle cx="160" cy="160" r="100" fill="url(#gradNucleoExt)">
+                <animateTransform attributeName="transform" type="rotate" from="0 160 160" to="360 160 160" dur="10s" repeatCount="indefinite" />
+              </circle>
+              <path d="M100,160 A60,60 0 1,1 220,160 A60,60 0 1,1 100,160 Z" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="5">
+                <animateTransform attributeName="transform" type="rotate" from="0 160 160" to="360 160 160" dur="8s" repeatCount="indefinite" />
+              </path>
+            </svg>
+          `
+        },
+        {
+          clave:'nucleo-interno',
+          id:'capa-nucleo-interno',
+          nombre:'Núcleo Interno',
+          radio: 58,
+          etiquetas: ["Hierro sólido", "Níquel", "Presión extrema", "Calor"],
+          leyenda: [
+            { nombre:"Fe-Ni", color:"#ffe06b" },
+            { nombre:"Sólido", color:"#ff8a2a" }
+          ],
+          textoDetalle: `El núcleo interno es una esfera sólida en el centro de la Tierra...`,
+          svgAnimado: `
+            <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-label="Animación Núcleo Interno" role="img">
+              <circle cx="160" cy="160" r="140" fill="#ff8a2a"/>
+              <defs>
+                <radialGradient id="gradNucleoInt" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ffe06b" stop-opacity="0.9"/>
+                  <stop offset="100%" stop-color="#ff8a2a" stop-opacity="1"/>
+                </radialGradient>
+              </defs>
+              <circle cx="160" cy="160" r="50" fill="url(#gradNucleoInt)">
+                <animate attributeName="r" values="50;52;50" dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="160" cy="160" r="30" fill="#ffcc00" opacity="0.7">
+                <animate attributeName="opacity" values="0.7;0.9;0.7" dur="2s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          `
+        }
+      ];
+
+      const capaPorId = new Map(CAPAS.map(c => [c.id, c]));
+      const nodos = new Map(CAPAS.map(c => [c.id, document.getElementById(c.id)]));
+
+      function abrirModal(capa){
+        modalTitulo.textContent = capa.nombre;
+        modalMeta.textContent = `id: ${capa.id}`;
+        modalCuerpo.textContent = capa.textoDetalle;
+
+        modalChips.innerHTML = "";
+        (capa.etiquetas || []).forEach(t => {
+          const span = document.createElement('span');
+          span.className = 'chip';
+          span.textContent = t;
+          modalChips.appendChild(span);
+        });
+
+        animLeyenda.innerHTML = "";
+        (capa.leyenda || []).forEach(item => {
+          const sw = document.createElement('span');
+          sw.className = 'sw';
+          const dot = document.createElement('i');
+          dot.style.background = item.color;
+          sw.appendChild(dot);
+          sw.appendChild(document.createTextNode(item.nombre));
+          animLeyenda.appendChild(sw);
+        });
+
+        // Insertar SVG animado en el contenedor
+        contenedorAnimacion.innerHTML = capa.svgAnimado || '';
+        // Asegurarse de que el SVG tenga la clase para estilos
+        const svgElement = contenedorAnimacion.querySelector('svg');
+        if (svgElement) {
+            svgElement.classList.add('animacionSVG'); // Añade clase para estilos si es necesario
+        }
+
+
+        modalFondo.classList.add('activo');
+        modalFondo.querySelector('.modal').focus();
+      }
+
+      function cerrarModal(){
+        modalFondo.classList.remove('activo');
+        // Limpiar el contenido del SVG animado al cerrar el modal
+        contenedorAnimacion.innerHTML = '';
+        tierra.focus();
+      }
+
+      btnCerrar.addEventListener('click', cerrarModal);
+      modalFondo.addEventListener('click', (e)=>{ if(e.target === modalFondo) cerrarModal(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && modalFondo.classList.contains('activo')) cerrarModal(); });
+
+      function activarCapa(idCapa){
+        for(const c of CAPAS){
+          const el = nodos.get(c.id);
+          if(!el) continue;
+          el.setAttribute('aria-pressed', c.id === idCapa ? 'true' : 'false');
+        }
+        for(const c of CAPAS){
+          const p = document.getElementById(`linea-${c.clave}`);
+          if(!p) continue;
+          p.classList.toggle('activa', c.id === idCapa);
+        }
+      }
+
+      for(const c of CAPAS){
+        const el = nodos.get(c.id);
+        if(!el) continue;
+        el.addEventListener('click', ()=>{ activarCapa(c.id); abrirModal(c); });
+        el.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter' || e.key === ' '){
+            e.preventDefault();
+            activarCapa(c.id);
+            abrirModal(c);
+          }
+        });
+      }
+
+      globos.addEventListener('click', (e)=>{
+        const btn = e.target.closest('.globo');
+        if(!btn) return;
+        const id = btn.getAttribute('data-capa');
+        const capa = capaPorId.get(id);
+        if(capa){ activarCapa(id); abrirModal(capa); }
+      });
+      globos.addEventListener('keydown', (e)=>{
+        const btn = e.target.closest('.globo');
+        if(!btn) return;
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          const id = btn.getAttribute('data-capa');
+          const capa = capaPorId.get(id);
+          if(capa){ activarCapa(id); abrirModal(capa); }
+        }
+      });
+
+      function obtenerPuntoAncla(capa, centroGlobInSvg){
+        const cx = 260, cy = 260;
+        const dx = centroGlobInSvg.x - cx;
+        const dy = centroGlobInSvg.y - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const r = Math.max(0, capa.radio - 2);
+        return { x: cx + ux * r, y: cy + uy * r };
+      }
+
+      function puntoSvgDesdeCliente(svgEl, clientX, clientY){
+        const pt = svgEl.createSVGPoint();
+        pt.x = clientX;
+        pt.y = clientY;
+        const inv = svgEl.getScreenCTM().inverse();
+        return pt.matrixTransform(inv);
+      }
+
+      function dibujarLineasConectoras(){
+        const area = document.querySelector('.area-tierra');
+        const areaRect = area.getBoundingClientRect();
+
+        svgConector.setAttribute('viewBox', `0 0 ${areaRect.width} ${areaRect.height}`);
+
+        for(const capa of CAPAS){
+          const globo = globos.querySelector(`.globo[data-capa="${capa.id}"]`);
+          const path = document.getElementById(`linea-${capa.clave}`);
+          if(!globo || !path) continue;
+
+          const br = globo.getBoundingClientRect();
+          const bcx = br.left + br.width/2;
+          const bcy = br.top + br.height/2;
+
+          const centroGlobInSvg = puntoSvgDesdeCliente(svgTierra, bcx, bcy);
+          const anclaInSvg = obtenerPuntoAncla(capa, centroGlobInSvg);
+
+          const ptAncla = svgTierra.createSVGPoint();
+          ptAncla.x = anclaInSvg.x;
+          ptAncla.y = anclaInSvg.y;
+          const anclaCliente = ptAncla.matrixTransform(svgTierra.getScreenCTM());
+
+          const startX = bcx - areaRect.left;
+          const startY = bcy - areaRect.top;
+          const endX = anclaCliente.x - areaRect.left;
+          const endY = anclaCliente.y - areaRect.top;
+
+          const dx = endX - startX;
+          const dy = endY - startY;
+          const dist = Math.hypot(dx, dy) || 1;
+          const nx = -dy / dist;
+          const ny = dx / dist;
+
+          const curva = Math.min(34, Math.max(10, dist * 0.07));
+
+          const c1x = startX + dx * 0.30 + nx * curva;
+          const c1y = startY + dy * 0.30 + ny * curva;
+          const c2x = startX + dx * 0.70 + nx * curva;
+          const c2y = startY + dy * 0.70 + ny * curva;
+
+          path.setAttribute('d',
+            `M ${startX.toFixed(2)} ${startY.toFixed(2)} C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${endX.toFixed(2)} ${endY.toFixed(2)}`
+          );
+        }
+      }
+
+      const observadorRedimension = new ResizeObserver(() => dibujarLineasConectoras());
+      observadorRedimension.observe(document.querySelector('.area-tierra'));
+      window.addEventListener('resize', dibujarLineasConectoras, { passive:true });
+      window.addEventListener('scroll', dibujarLineasConectoras, { passive:true });
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(dibujarLineasConectoras);
+
+      requestAnimationFrame(() => {
+        dibujarLineasConectoras();
+        setTimeout(dibujarLineasConectoras, 80);
+        setTimeout(dibujarLineasConectoras, 220);
+      });
+
+      // Inicializar con atmósfera activa
+      activarCapa('capa-atmosfera');
+    })();
+  </script>
+</body>
+</html>
